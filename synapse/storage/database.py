@@ -95,6 +95,8 @@ UNIQUE_INDEX_BACKGROUND_UPDATES = {
     "local_media_repository_thumbnails": "local_media_repository_thumbnails_method_idx",
     "remote_media_cache_thumbnails": "remote_media_repository_thumbnails_method_idx",
     "event_push_summary": "event_push_summary_unique_index2",
+    "receipts_linearized": "receipts_linearized_unique_index",
+    "receipts_graph": "receipts_graph_unique_index",
 }
 
 
@@ -1191,6 +1193,7 @@ class DatabasePool:
         keyvalues: Dict[str, Any],
         values: Dict[str, Any],
         insertion_values: Optional[Dict[str, Any]] = None,
+        where_clause: Optional[str] = None,
         lock: bool = True,
     ) -> bool:
         """
@@ -1213,7 +1216,12 @@ class DatabasePool:
 
         if table not in self._unsafe_to_upsert_tables:
             return self.simple_upsert_txn_native_upsert(
-                txn, table, keyvalues, values, insertion_values=insertion_values
+                txn,
+                table,
+                keyvalues,
+                values,
+                insertion_values=insertion_values,
+                where_clause=where_clause,
             )
         else:
             return self.simple_upsert_txn_emulated(
@@ -1222,6 +1230,7 @@ class DatabasePool:
                 keyvalues,
                 values,
                 insertion_values=insertion_values,
+                where_clause=where_clause,
                 lock=lock,
             )
 
@@ -1232,6 +1241,7 @@ class DatabasePool:
         keyvalues: Dict[str, Any],
         values: Dict[str, Any],
         insertion_values: Optional[Dict[str, Any]] = None,
+        where_clause: Optional[str] = None,
         lock: bool = True,
     ) -> bool:
         """
@@ -1259,14 +1269,15 @@ class DatabasePool:
             else:
                 return "%s = ?" % (key,)
 
+        where = [_getwhere(k) for k in keyvalues]
+        if where_clause:
+            where.append(where_clause)
+
         if not values:
             # If `values` is empty, then all of the values we care about are in
             # the unique key, so there is nothing to UPDATE. We can just do a
             # SELECT instead to see if it exists.
-            sql = "SELECT 1 FROM %s WHERE %s" % (
-                table,
-                " AND ".join(_getwhere(k) for k in keyvalues),
-            )
+            sql = "SELECT 1 FROM %s WHERE %s" % (table, " AND ".join(where))
             sqlargs = list(keyvalues.values())
             txn.execute(sql, sqlargs)
             if txn.fetchall():
@@ -1277,7 +1288,7 @@ class DatabasePool:
             sql = "UPDATE %s SET %s WHERE %s" % (
                 table,
                 ", ".join("%s = ?" % (k,) for k in values),
-                " AND ".join(_getwhere(k) for k in keyvalues),
+                " AND ".join(where),
             )
             sqlargs = list(values.values()) + list(keyvalues.values())
 
@@ -1307,6 +1318,7 @@ class DatabasePool:
         keyvalues: Dict[str, Any],
         values: Dict[str, Any],
         insertion_values: Optional[Dict[str, Any]] = None,
+        where_clause: Optional[str] = None,
     ) -> bool:
         """
         Use the native UPSERT functionality in PostgreSQL.
@@ -1331,11 +1343,12 @@ class DatabasePool:
             allvalues.update(values)
             latter = "UPDATE SET " + ", ".join(k + "=EXCLUDED." + k for k in values)
 
-        sql = ("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO %s") % (
+        sql = ("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) %s DO %s") % (
             table,
             ", ".join(k for k in allvalues),
             ", ".join("?" for _ in allvalues),
             ", ".join(k for k in keyvalues),
+            f"WHERE {where_clause}" if where_clause else "",
             latter,
         )
         txn.execute(sql, list(allvalues.values()))
