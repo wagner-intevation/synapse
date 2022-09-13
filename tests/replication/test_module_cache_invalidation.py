@@ -40,10 +40,6 @@ class ModuleCacheInvalidationTestCase(BaseMultiWorkerStreamTestCase):
     ]
 
     def test_module_cache_full_invalidation(self):
-        # This is supposed to be useless, but something definitively
-        # get initialized regarding replication there since it doesn't work without it
-        self.register_user("user", "pass")
-
         main_cache = TestCache()
         self.hs.get_module_api().register_cached_function(main_cache.cached_function)
 
