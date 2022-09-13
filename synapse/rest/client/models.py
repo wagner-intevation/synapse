@@ -20,12 +20,6 @@ from synapse.rest.models import RequestBodyModel
 from synapse.util.threepids import validate_email
 
 
-class ThreepidMedium(str, Enum):
-    # Per advice at https://pydantic-docs.helpmanual.io/usage/types/#enums-and-choices
-    email = "email"
-    msisdn = "msisdn"
-
-
 class AuthenticationData(RequestBodyModel):
     """
     Data used during user-interactive authentication.
