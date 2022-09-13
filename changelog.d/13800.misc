@@ -1,0 +1,1 @@
+Add functionality to persist initial createRoom events to DB in a batch (PR #13800).
