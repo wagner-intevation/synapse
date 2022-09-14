@@ -35,8 +35,8 @@ jobs:
       - uses: matrix-org/setup-python-poetry@v1
         with:
           extras: "all"
-      - run: scripts-dev/generate_sample_config.sh --check
-      - run: scripts-dev/config-lint.sh
+      - run: poetry run scripts-dev/generate_sample_config.sh --check
+      - run: poetry run scripts-dev/config-lint.sh
 
   check-schema-delta:
     runs-on: ubuntu-latest
